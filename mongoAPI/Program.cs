@@ -1,10 +1,15 @@
-using mongoAPI.Models;
 using mongoAPI.Services;
+using DotNetEnv;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.Configure<MongoDBSettings>(builder.Configuration.GetSection("MongoDB"));
-builder.Services.AddSingleton<MongoDBService>();
+Env.Load();
+bool isProd = Env.GetString("ENVIRONMENT") == "production";
+string mongoURI = Env.GetString("MONGODB_URI");
+
+builder.Services.AddSingleton<MongoDBService>(sg => new MongoDBService(mongoURI));
+var mongoService = builder.Services.BuildServiceProvider().GetRequiredService<MongoDBService>();
+await mongoService.AddIndexes();
 
 // Add services to the container.
 

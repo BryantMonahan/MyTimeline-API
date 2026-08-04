@@ -16,58 +16,58 @@ namespace mongoAPI.Controllers
             _mongoDBService = mongoDBService;
         }
 
-        [HttpGet]
-        public async Task<List<Playlist>> GetAllPlaylists()
-        {
-            return await _mongoDBService.GetAllPlaylists();
-        }
+        //[HttpGet]
+        //public async Task<List<Playlist>> GetAllPlaylists()
+        //{
+        //    return await _mongoDBService.GetAllPlaylists();
+        //}
 
-        [HttpPost]
-        public async Task<IActionResult> CreatePlaylist([FromBody] Playlist playlist)
-        {
-            try
-            {
-                await _mongoDBService.CreatePlaylist(playlist);
-                return CreatedAtAction(nameof(GetAllPlaylists), new { id = playlist.Id }, playlist);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                return BadRequest(e.Message);
-            }
+        //[HttpPost]
+        //public async Task<IActionResult> CreatePlaylist([FromBody] Playlist playlist)
+        //{
+        //    try
+        //    {
+        //        await _mongoDBService.CreatePlaylist(playlist);
+        //        return CreatedAtAction(nameof(GetAllPlaylists), new { id = playlist.Id }, playlist);
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        Console.WriteLine(e.Message);
+        //        return BadRequest(e.Message);
+        //    }
      
-        }
+        //}
 
-        // this endpoint is just for ADDING a movie to a playlist
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdatePlaylist(string id, [FromBody] string movieId)
-        {
-            try
-            {
-                await _mongoDBService.AddPlaylist(id, movieId);
-                return Ok();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                return BadRequest(e.Message);
-            }
-        }
+        //// this endpoint is just for ADDING a movie to a playlist
+        //[HttpPut("{id}")]
+        //public async Task<IActionResult> UpdatePlaylist(string id, [FromBody] string movieId)
+        //{
+        //    try
+        //    {
+        //        await _mongoDBService.AddPlaylist(id, movieId);
+        //        return Ok();
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        Console.WriteLine(e.Message);
+        //        return BadRequest(e.Message);
+        //    }
+        //}
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeletePlaylist(string id)
-        {
-            try
-            {
-                await _mongoDBService.DeletePlaylist(id);
-                return Ok();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                return BadRequest();
-            }
-        }
+        //[HttpDelete("{id}")]
+        //public async Task<IActionResult> DeletePlaylist(string id)
+        //{
+        //    try
+        //    {
+        //        await _mongoDBService.DeletePlaylist(id);
+        //        return Ok();
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        Console.WriteLine(e.Message);
+        //        return BadRequest();
+        //    }
+        //}
 
     }
 }

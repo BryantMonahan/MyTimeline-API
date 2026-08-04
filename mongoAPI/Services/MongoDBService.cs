@@ -7,34 +7,50 @@ namespace mongoAPI.Services
 {
     public class MongoDBService
     {
-        private readonly IMongoCollection<Playlist> _playlistCollection;
+        private readonly IMongoCollection<User> usersCollection;
+        private readonly IMongoDatabase _mongoDb;
 
-        public MongoDBService(IOptions<MongoDBSettings> mongoDBSettings)
+        public MongoDBService(string connectionURI)
         {
-            MongoClient client = new MongoClient(mongoDBSettings.Value.ConnectionStringURI);
-            IMongoDatabase db = client.GetDatabase(mongoDBSettings.Value.DatabaseName);
-            _playlistCollection = db.GetCollection<Playlist>(mongoDBSettings.Value.CollectionName);
+            MongoClient client = new MongoClient(connectionURI);
+            _mongoDb = client.GetDatabase("my-timeline-db");
+            usersCollection = _mongoDb.GetCollection<User>("users");
         }
 
-        public async Task<List<Playlist>> GetAllPlaylists()
+        public async Task AddIndexes()
         {
-            var playlists = await _playlistCollection.FindAsync(_ => true);
-            return playlists.ToList();
+            var userNameIndexKey = Builders<User>.IndexKeys.Ascending(u => u.username);
+            var emailIndexKey = Builders<User>.IndexKeys.Ascending(u => u.email);
+            var indexOptions = new CreateIndexOptions { Unique = true };
+            var userNameIndexModel = new CreateIndexModel<User>(userNameIndexKey, indexOptions);
+            var emailIndexModel = new CreateIndexModel<User>(emailIndexKey, indexOptions);
+
+            await _mongoDb.GetCollection<User>("users").Indexes.CreateManyAsync(new [] { userNameIndexModel, emailIndexModel });
+        }
+        public IMongoCollection<User> GetUserCollection()
+        {
+            return usersCollection;
         }
 
-        public async Task CreatePlaylist(Playlist playlist)
-        {
-            await _playlistCollection.InsertOneAsync(playlist);
-        }
+        //public async Task<List<Playlist>> GetAllPlaylists()
+        //{
+        //    var playlists = await _playlistCollection.FindAsync(_ => true);
+        //    return playlists.ToList();
+        //}
 
-        public async Task DeletePlaylist(string id)
-        {
-            await _playlistCollection.DeleteOneAsync(p => p.Id == id);
-        }
+        //public async Task CreatePlaylist(Playlist playlist)
+        //{
+        //    await _playlistCollection.InsertOneAsync(playlist);
+        //}
 
-        public async Task AddPlaylist(string id, string movieId)
-        {
-            await _playlistCollection.UpdateOneAsync(p => p.Id == id, Builders<Playlist>.Update.AddToSet<string>("movieId", movieId));
-        }
+        //public async Task DeletePlaylist(string id)
+        //{
+        //    await _playlistCollection.DeleteOneAsync(p => p.Id == id);
+        //}
+
+        //public async Task AddPlaylist(string id, string movieId)
+        //{
+        //    await _playlistCollection.UpdateOneAsync(p => p.Id == id, Builders<Playlist>.Update.AddToSet<string>("movieId", movieId));
+        //}
     }
 }
