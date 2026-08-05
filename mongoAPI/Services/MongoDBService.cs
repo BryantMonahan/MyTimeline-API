@@ -17,6 +17,10 @@ namespace mongoAPI.Services
             usersCollection = _mongoDb.GetCollection<User>("users");
         }
 
+        /**
+         * Creates unique indexes for the username and email fields in the users collection.
+         * This ensures that no two users can have the same username or email.
+         */
         public async Task AddIndexes()
         {
             var userNameIndexKey = Builders<User>.IndexKeys.Ascending(u => u.username);
@@ -24,8 +28,8 @@ namespace mongoAPI.Services
             var indexOptions = new CreateIndexOptions { Unique = true };
             var userNameIndexModel = new CreateIndexModel<User>(userNameIndexKey, indexOptions);
             var emailIndexModel = new CreateIndexModel<User>(emailIndexKey, indexOptions);
-
-            await _mongoDb.GetCollection<User>("users").Indexes.CreateManyAsync(new [] { userNameIndexModel, emailIndexModel });
+            //var collection  = await _mongoDb.GetCollection<User>("Users")
+            await _mongoDb.GetCollection<User>("users").Indexes.CreateManyAsync(new List<CreateIndexModel<User>> { userNameIndexModel, emailIndexModel });
         }
         public IMongoCollection<User> GetUserCollection()
         {
