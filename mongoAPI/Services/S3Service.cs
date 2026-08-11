@@ -16,14 +16,13 @@ namespace mongoAPI.Services
             _s3Settings = s3Settings;
         }
 
-        public PresignedUrl GetPresignedUrl(string contentType, string username)
+        public PresignedUrl GetPresignedUrl(string username, string extension)
         {
             var request = new GetPreSignedUrlRequest
             {
                 BucketName = _s3Settings.BucketName,
-                Key = $"{username}/{Guid.NewGuid().ToString()}",
+                Key = $"{username}/{Guid.NewGuid().ToString()}{extension}",
                 Expires = DateTime.Now.AddMinutes(3),
-                ContentType = contentType,
                 Verb = HttpVerb.PUT
             };
 

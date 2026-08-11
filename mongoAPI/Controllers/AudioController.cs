@@ -10,6 +10,11 @@ namespace mongoAPI.Controllers
     [ApiController]
     public class AudioController : ControllerBase
     {
+        private static readonly HashSet<string> AllowedAudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".wma", ".aiff"
+        };
+
         private readonly S3Service _s3Service;
 
         public AudioController(S3Service s3Service)
@@ -25,15 +30,24 @@ namespace mongoAPI.Controllers
             {
                 return BadRequest("No file uploaded");
             }
+            if (!AllowedAudioExtensions.Contains(Path.GetExtension(file.FileName)))
+            {
+                return BadRequest("File must be an audio file");
+            }
             Console.WriteLine(file.FileName);
             Console.WriteLine(file.ToString());
             return Created();
         }
 
-        [HttpPost("url")]
-        async public Task<IActionResult> GetPresignedS3Url([FromBody] PresignedUrlRequest req)
+        [HttpGet("url")]
+        async public Task<IActionResult> GetPresignedS3Url([FromQuery] string fileName)
         {
-            var url = _s3Service.GetPresignedUrl("bmoney", req.ContentType);
+            var extension = Path.GetExtension(fileName);
+            if (!AllowedAudioExtensions.Contains(extension))
+            {
+                return BadRequest("File must be an audio file");
+            }
+            var url = _s3Service.GetPresignedUrl("bmoney", extension);
             return Ok(url);
         }
     }
