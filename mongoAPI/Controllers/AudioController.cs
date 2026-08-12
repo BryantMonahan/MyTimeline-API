@@ -1,4 +1,5 @@
 ﻿using Amazon.S3.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using mongoAPI.Services;
@@ -24,6 +25,7 @@ namespace mongoAPI.Controllers
 
 
         [HttpPost("upload")]
+        [Authorize]
         async public Task<IActionResult> UploadAudioFile(IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -40,6 +42,7 @@ namespace mongoAPI.Controllers
         }
 
         [HttpGet("url")]
+        [Authorize]
         async public Task<IActionResult> GetPresignedS3Url([FromQuery] string fileName)
         {
             var extension = Path.GetExtension(fileName);

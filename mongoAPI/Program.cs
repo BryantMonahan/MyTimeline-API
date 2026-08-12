@@ -5,6 +5,9 @@ using Amazon.S3;
 using Amazon;
 using Microsoft.Extensions.Options;
 using Amazon.Runtime;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +19,9 @@ string s3Region = Env.GetString("S3_REGION");
 string s3BucketName = Env.GetString("S3_BUCKET_NAME");
 string awsAccessKey = Env.GetString("AWS_ACCESS_KEY");
 string awsSecretKey = Env.GetString("AWS_SECRET_ACCESS_KEY");
+string jwtSecretKey = Env.GetString("JWT_SECRET_KEY");
+string jwtIssuer = Env.GetString("JWT_ISSUER");
+string jwtAudience = Env.GetString("JWT_AUDIENCE");
 
 builder.Services.AddCors(opt =>
 {
@@ -52,6 +58,32 @@ builder.Services.AddSingleton<S3Service>(sp =>
 
     return new S3Service(s3Client, s3Settings);
 });
+builder.Services.AddSingleton<TokenService>(sp => new TokenService(jwtSecretKey, jwtIssuer, jwtAudience));
+builder.Services.AddAuthorization();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(p =>
+{
+    p.RequireHttpsMetadata = isProd;
+    p.TokenValidationParameters = new TokenValidationParameters
+    {
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
+        ClockSkew = TimeSpan.Zero,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience
+    };
+    // we're setting the jwt to be an Http only cookie instead of returned as JSON, so this get's
+    // the cookie and sets it as the Bearer token before authentication
+    p.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            if (context.Request.Cookies.TryGetValue("token", out var token))
+            {
+                context.Token = token;
+            }
+            return Task.CompletedTask;
+        }
+    };
+});
 
 // Ensure indexes are created before the application starts
 var mongoService = builder.Services.BuildServiceProvider().GetRequiredService<MongoDBService>();
@@ -77,9 +109,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseCors("DevCorsPolicy");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
