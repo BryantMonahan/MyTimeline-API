@@ -8,6 +8,9 @@ using Amazon.Runtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using MongoDB.Bson.Serialization.Conventions;
+
+// TODO: Setup a CRON job to delete un-validated files from the S3 bucket
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,7 +30,7 @@ builder.Services.AddCors(opt =>
 {
     opt.AddPolicy("DevCorsPolicy", policyBuilder =>
     {
-        policyBuilder.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:4200");
+        policyBuilder.AllowAnyHeader().AllowAnyMethod().WithOrigins("http://localhost:4200").AllowCredentials();
     });
 });
 
@@ -36,6 +39,10 @@ builder.Services.Configure<S3Settings>(opt =>
     opt.Region = s3Region;
     opt.BucketName = s3BucketName;
 });
+
+// converts PascalCase properties in C# to camelCase in the mongo document
+var pack = new ConventionPack { new CamelCaseElementNameConvention() };
+ConventionRegistry.Register("camelCase", pack, t => true);
 
 
 builder.Services.AddSingleton<MongoDBService>(sp => new MongoDBService(mongoURI));

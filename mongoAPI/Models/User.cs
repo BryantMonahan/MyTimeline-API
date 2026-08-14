@@ -8,10 +8,10 @@ namespace mongoAPI.Models
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
         public string Id { get; set; }
-        public string username { get; set; }
-        public string hashedPassword { get; set; }
-        public string email { get; set; }
-        public bool coolUser { get; set; } = false;
+        public string Username { get; set; }
+        public string HashedPassword { get; set; }
+        public string Email { get; set; }
+        public bool CoolUser { get; set; } = false;
 
     }
 }

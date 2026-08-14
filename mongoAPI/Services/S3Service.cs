@@ -21,13 +21,32 @@ namespace mongoAPI.Services
             var request = new GetPreSignedUrlRequest
             {
                 BucketName = _s3Settings.BucketName,
-                Key = $"{username}/{Guid.NewGuid().ToString()}{extension}",
+                Key = $"{username}/{Guid.NewGuid()}{extension}",
                 Expires = DateTime.Now.AddMinutes(3),
                 Verb = HttpVerb.PUT
             };
 
             var presignedUrl = _s3Client.GetPreSignedURL(request);
             return new PresignedUrl { Key = request.Key, Url = presignedUrl };
+        }
+
+        async public Task<GetObjectMetadataResponse?> GetObjectMetadata(string objectKey)
+        {
+            var request = new GetObjectMetadataRequest
+            {
+                BucketName = _s3Settings.BucketName,
+                Key = objectKey
+            };
+            try
+            {
+                var metadata = await _s3Client.GetObjectMetadataAsync(request);
+                return metadata;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error retrieving metadata", e.Message);
+                return null;
+            }
         }
     }
 }

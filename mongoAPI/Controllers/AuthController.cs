@@ -26,18 +26,19 @@ namespace mongoAPI.Controllers
         public async Task<IActionResult> AttemptLogin([FromBody] LoginRequest req)
         {
             var collection = _mongoDBService.GetUserCollection();
-            var user = await collection.Find<User>(u => u.username == req.Username).FirstOrDefaultAsync<User>();
+            var user = await collection.Find<User>(u => u.Username == req.Username).FirstOrDefaultAsync<User>();
             if (user == null)
             {
                 return Unauthorized("Incorrect username or password");
             }
-            if (BCrypt.Net.BCrypt.EnhancedVerify(req.Password, user.hashedPassword))
+            if (BCrypt.Net.BCrypt.EnhancedVerify(req.Password, user.HashedPassword))
             {
                 string token = _tokenService.CreateToken(user);
                 var options = new CookieOptions
                 {
                     HttpOnly = true,
                     Secure = true,
+                    SameSite = SameSiteMode.None,
                     Expires = DateTimeOffset.UtcNow.AddHours(4),
                 };
                 Response.Cookies.Append("token", token, options);
@@ -53,20 +54,20 @@ namespace mongoAPI.Controllers
         public async Task<IActionResult> RegisterAccount([FromBody] RegisterRequest req)
         {
             var collection = _mongoDBService.GetUserCollection();
-            var user = await collection.Find<User>(u => u.username == req.Username || u.email == req.Email).FirstOrDefaultAsync();
+            var user = await collection.Find<User>(u => u.Username == req.Username || u.Email == req.Email).FirstOrDefaultAsync();
             if (user == null)
             {
                 await collection.InsertOneAsync(new Models.User
                 {
-                    username = req.Username,
-                    hashedPassword = BCrypt.Net.BCrypt.EnhancedHashPassword(req.Password, 12),
-                    email = req.Email
+                    Username = req.Username,
+                    HashedPassword = BCrypt.Net.BCrypt.EnhancedHashPassword(req.Password, 12),
+                    Email = req.Email
                 });
                 return CreatedAtAction(nameof(AttemptLogin), null, new { username = req.Username, email = req.Email });
             }
             else
             {
-                if (user.username == req.Username)
+                if (user.Username == req.Username)
                 {
                     return Conflict("That username is already taken");
                 }

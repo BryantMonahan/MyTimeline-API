@@ -8,6 +8,7 @@ namespace mongoAPI.Services
     public class MongoDBService
     {
         private readonly IMongoCollection<User> usersCollection;
+        private readonly IMongoCollection<JournalEntry> journalCollection;
         private readonly IMongoDatabase _mongoDb;
 
         public MongoDBService(string connectionURI)
@@ -15,6 +16,7 @@ namespace mongoAPI.Services
             MongoClient client = new MongoClient(connectionURI);
             _mongoDb = client.GetDatabase("my-timeline-db");
             usersCollection = _mongoDb.GetCollection<User>("users");
+            journalCollection = _mongoDb.GetCollection<JournalEntry>("journalEntries");
         }
 
         /**
@@ -23,17 +25,21 @@ namespace mongoAPI.Services
          */
         public async Task AddIndexes()
         {
-            var userNameIndexKey = Builders<User>.IndexKeys.Ascending(u => u.username);
-            var emailIndexKey = Builders<User>.IndexKeys.Ascending(u => u.email);
+            var userNameIndexKey = Builders<User>.IndexKeys.Ascending(u => u.Username);
+            var emailIndexKey = Builders<User>.IndexKeys.Ascending(u => u.Email);
             var indexOptions = new CreateIndexOptions { Unique = true };
             var userNameIndexModel = new CreateIndexModel<User>(userNameIndexKey, indexOptions);
             var emailIndexModel = new CreateIndexModel<User>(emailIndexKey, indexOptions);
-            //var collection  = await _mongoDb.GetCollection<User>("Users")
             await _mongoDb.GetCollection<User>("users").Indexes.CreateManyAsync(new List<CreateIndexModel<User>> { userNameIndexModel, emailIndexModel });
         }
         public IMongoCollection<User> GetUserCollection()
         {
             return usersCollection;
+        }
+
+        public IMongoCollection<JournalEntry> GetJournalCollection()
+        {
+            return journalCollection;
         }
 
         //public async Task<List<Playlist>> GetAllPlaylists()

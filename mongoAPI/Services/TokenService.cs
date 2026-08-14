@@ -27,7 +27,7 @@ namespace mongoAPI.Services
                 Subject = new ClaimsIdentity
                 ([
                     new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                    new Claim(JwtRegisteredClaimNames.UniqueName, user.username.ToString()),
+                    new Claim(JwtRegisteredClaimNames.UniqueName, user.Username.ToString()),
                 ]),
                 Expires = DateTime.UtcNow.AddHours(4),
                 SigningCredentials = credentials,
