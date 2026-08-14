@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using MongoDB.Bson.Serialization.Conventions;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 // TODO: Setup a CRON job to delete un-validated files from the S3 bucket
 

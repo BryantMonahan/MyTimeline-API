@@ -10,6 +10,7 @@ using System.Security.Claims;
 using System.Net;
 using System.Diagnostics.CodeAnalysis;
 using MongoDB.Driver;
+using System.Numerics;
 
 namespace mongoAPI.Controllers
 {
@@ -93,6 +94,26 @@ namespace mongoAPI.Controllers
 
             }
             return Ok(url);
+        }
+
+        [HttpGet("most-recent-entries")]
+        [Authorize]
+        async public Task<IActionResult> GetMostRecentJournalEntries([FromQuery] int numOfEntries)
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var collection = _mongoDbService.GetJournalCollection();
+                var filter = Builders<JournalEntry>.Filter.Eq(j => j.Validated, true)
+                    & Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId);
+                var sort = Builders<JournalEntry>.Sort.Descending(j => j.Uploaded);
+                var entries = await collection.Find(filter).Sort(sort).Limit(numOfEntries).ToListAsync();
+                return Ok(entries);
+            }
+            catch (System.Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
+            }
         }
     }
 }
