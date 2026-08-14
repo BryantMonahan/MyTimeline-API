@@ -16,7 +16,7 @@ namespace mongoAPI.Services
             _s3Settings = s3Settings;
         }
 
-        public PresignedUrl GetPresignedUrl(string username, string extension)
+        public PresignedUrl GetPresignedUrlPut(string username, string extension)
         {
             var request = new GetPreSignedUrlRequest
             {
@@ -28,6 +28,19 @@ namespace mongoAPI.Services
 
             var presignedUrl = _s3Client.GetPreSignedURL(request);
             return new PresignedUrl { Key = request.Key, Url = presignedUrl };
+        }
+
+        public string GetPresignedUrlGet(string key)
+        {
+            var request = new GetPreSignedUrlRequest
+            {
+                BucketName = _s3Settings.BucketName,
+                Key = key,
+                Expires = DateTime.Now.AddMinutes(3),
+                Verb = HttpVerb.GET
+            };
+            var presignedUrl = _s3Client.GetPreSignedURL(request);
+            return presignedUrl;
         }
 
         async public Task<GetObjectMetadataResponse?> GetObjectMetadata(string objectKey)

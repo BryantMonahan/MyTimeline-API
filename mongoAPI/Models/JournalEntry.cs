@@ -21,6 +21,7 @@ namespace mongoAPI.Models
         public int SecLength { get; set; }
         public int SizeInBytes { get; set; }
         public string? Transcription { get; set; }
+        public string? Summary { get; set; }
         public bool Validated { get; set; } = false;
         public TranscriptionStatus Transcribed { get; set; } = TranscriptionStatus.NotTranscribed;
     }

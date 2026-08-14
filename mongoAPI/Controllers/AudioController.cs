@@ -11,6 +11,7 @@ using System.Net;
 using System.Diagnostics.CodeAnalysis;
 using MongoDB.Driver;
 using System.Numerics;
+using MongoDB.Bson;
 
 namespace mongoAPI.Controllers
 {
@@ -25,11 +26,13 @@ namespace mongoAPI.Controllers
 
         private readonly S3Service _s3Service;
         private readonly MongoDBService _mongoDbService;
+        private readonly DeepgramService _deepgramService;
 
-        public AudioController(S3Service s3Service, MongoDBService mongoDbService)
+        public AudioController(S3Service s3Service, MongoDBService mongoDbService, DeepgramService deepgramService)
         {
             _s3Service = s3Service;
             _mongoDbService = mongoDbService;
+            _deepgramService = deepgramService;
         }
 
         [HttpPost("confirm-upload")]
@@ -78,7 +81,9 @@ namespace mongoAPI.Controllers
             {
                 return BadRequest("File must be an audio file");
             }
-            var url = _s3Service.GetPresignedUrl("bmoney", extension);
+            var username = User.FindFirstValue(ClaimTypes.Name);
+            if (username == null) { throw new Exception("Username in JWT was null"); }
+            var url = _s3Service.GetPresignedUrlPut(username, extension);
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var collection = _mongoDbService.
             GetJournalCollection();
@@ -112,6 +117,59 @@ namespace mongoAPI.Controllers
             }
             catch (System.Exception)
             {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
+            }
+        }
+
+        [HttpPost("transcribe")]
+        [Authorize]
+        public async Task<IActionResult> TranscribeAudio([FromBody] TranscribeAudioRequest req)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var filter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId) & Builders<JournalEntry>.Filter.Eq(j => j.ObjectKey, req.ObjectKey);
+            try
+            {
+                var username = User.FindFirstValue(ClaimTypes.Name);
+                var collection = _mongoDbService.GetJournalCollection();
+                var entry = await collection.Find(filter).ToListAsync();
+                if (entry.Count == 0)
+                {
+                    return BadRequest("No object with that key belonging to this user was found");
+                }
+                else if (entry.First().Transcribed != TranscriptionStatus.NotTranscribed)
+                {
+                    return BadRequest("File has already been transcribed");
+                }
+                // set entry to transcribing
+                var update = Builders<JournalEntry>.Update.Set(j => j.Transcribed, TranscriptionStatus.Transcribing);
+                await collection.UpdateOneAsync(filter, update);
+
+                var url = _s3Service.GetPresignedUrlGet(req.ObjectKey);
+
+                var transcript = await _deepgramService.TranscribeFileAsync(url);
+                if (transcript.Results.Summary.Result == "success")
+                {
+                    // set as transcribed
+                    update = Builders<JournalEntry>.Update
+                    .Set(j => j.Transcribed, TranscriptionStatus.Transcribed)
+                    .Set(j => j.Transcription, transcript.Results.Channels[0].Alternatives[0].Transcript)
+                    .Set(j => j.Summary, transcript.Results.Summary.Short);
+                    await collection.UpdateOneAsync(filter, update);
+                    var doc = await collection.FindAsync(filter);
+                    return Ok(doc.FirstOrDefault());
+                }
+                else
+                {
+                    throw new Exception("The transcript did not succeed");
+                }
+
+            }
+            catch (Exception e)
+            {
+                var collection = _mongoDbService.GetJournalCollection();
+                var update = Builders<JournalEntry>.Update.Set(j => j.Transcribed, TranscriptionStatus.NotTranscribed);
+                await collection.UpdateOneAsync(filter, update);
+                Console.WriteLine("Something went wrong transcribing an audio file", e.Message);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
             }
         }

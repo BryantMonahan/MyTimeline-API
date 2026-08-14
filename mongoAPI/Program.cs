@@ -47,6 +47,7 @@ ConventionRegistry.Register("camelCase", pack, t => true);
 
 
 builder.Services.AddSingleton<MongoDBService>(sp => new MongoDBService(mongoURI));
+builder.Services.AddSingleton<DeepgramService>();
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
     var s3Settings = sp.GetRequiredService<IOptions<S3Settings>>().Value;

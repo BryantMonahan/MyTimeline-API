@@ -10,11 +10,12 @@ namespace mongoAPI.Services
         private readonly IMongoCollection<User> usersCollection;
         private readonly IMongoCollection<JournalEntry> journalCollection;
         private readonly IMongoDatabase _mongoDb;
+        private readonly MongoClient _client;
 
         public MongoDBService(string connectionURI)
         {
-            MongoClient client = new MongoClient(connectionURI);
-            _mongoDb = client.GetDatabase("my-timeline-db");
+            _client = new MongoClient(connectionURI);
+            _mongoDb = _client.GetDatabase("my-timeline-db");
             usersCollection = _mongoDb.GetCollection<User>("users");
             journalCollection = _mongoDb.GetCollection<JournalEntry>("journalEntries");
         }
@@ -42,25 +43,9 @@ namespace mongoAPI.Services
             return journalCollection;
         }
 
-        //public async Task<List<Playlist>> GetAllPlaylists()
-        //{
-        //    var playlists = await _playlistCollection.FindAsync(_ => true);
-        //    return playlists.ToList();
-        //}
-
-        //public async Task CreatePlaylist(Playlist playlist)
-        //{
-        //    await _playlistCollection.InsertOneAsync(playlist);
-        //}
-
-        //public async Task DeletePlaylist(string id)
-        //{
-        //    await _playlistCollection.DeleteOneAsync(p => p.Id == id);
-        //}
-
-        //public async Task AddPlaylist(string id, string movieId)
-        //{
-        //    await _playlistCollection.UpdateOneAsync(p => p.Id == id, Builders<Playlist>.Update.AddToSet<string>("movieId", movieId));
-        //}
+        // public async Task<IClientSessionHandle> GetSession()
+        // {
+        //     return await _client.StartSessionAsync();
+        // }
     }
 }
