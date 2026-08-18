@@ -63,7 +63,7 @@ namespace mongoAPI.Controllers
                 // get the collection and run the update
                 var collection = _mongoDbService.GetJournalCollection();
                 await collection.UpdateOneAsync(filter, update);
-                return Ok();
+                return Created();
             }
             catch (Exception e)
             {
@@ -153,6 +153,7 @@ namespace mongoAPI.Controllers
                     update = Builders<JournalEntry>.Update
                     .Set(j => j.Transcribed, TranscriptionStatus.Transcribed)
                     .Set(j => j.Transcription, transcript.Results.Channels[0].Alternatives[0].Transcript)
+                    .Set(j => j.WordCount, transcript.Results.Channels[0].Alternatives[0].Words.Count)
                     .Set(j => j.Summary, transcript.Results.Summary.Short);
                     await collection.UpdateOneAsync(filter, update);
                     var doc = await collection.FindAsync(filter);

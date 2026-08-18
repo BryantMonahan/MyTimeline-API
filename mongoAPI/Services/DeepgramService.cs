@@ -21,7 +21,10 @@ namespace mongoAPI.Services
             var response = await _deepgramClient.TranscribeUrl(new UrlSource(url), new PreRecordedSchema()
             {
                 Model = "nova-3",
-                Summarize = "v2"
+                Summarize = "v2",
+                SmartFormat = true,
+                // if there are multiple speakers then this will assign the transcribed words to a speaker
+                Diarize = true
             });
             if (response == null) throw new Exception("Deepgram API returned a null response");
             return response;
