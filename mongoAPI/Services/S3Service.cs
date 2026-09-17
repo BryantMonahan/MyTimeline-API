@@ -2,6 +2,7 @@
 using Amazon.S3.Model;
 using mongoAPI.Models;
 using mongoAPI.Types;
+using FFMpegCore;
 
 namespace mongoAPI.Services
 {
@@ -43,17 +44,19 @@ namespace mongoAPI.Services
             return presignedUrl;
         }
 
-        async public Task<GetObjectMetadataResponse?> GetObjectMetadata(string objectKey)
+        async public Task<FileSizeAndLength?> GetObjectMetadata(string objectKey)
         {
-            var request = new GetObjectMetadataRequest
-            {
-                BucketName = _s3Settings.BucketName,
-                Key = objectKey
-            };
             try
             {
+                string url = GetPresignedUrlGet(objectKey);
+                var request = new GetObjectMetadataRequest
+                {
+                    BucketName = _s3Settings.BucketName,
+                    Key = objectKey
+                };
                 var metadata = await _s3Client.GetObjectMetadataAsync(request);
-                return metadata;
+                var analysis = await FFProbe.AnalyseAsync(new Uri(url));
+                return new FileSizeAndLength { SecLength = analysis.Duration.Seconds, SizeInBytes = (int)metadata.ContentLength };
             }
             catch (Exception e)
             {
@@ -61,5 +64,26 @@ namespace mongoAPI.Services
                 return null;
             }
         }
+
+        // Deletes an object from the S3 bucket based on its key
+        async public Task<bool> DeleteObject(string objectKey)
+        {
+            try
+            {
+                var request = new DeleteObjectRequest
+                {
+                    BucketName = _s3Settings.BucketName,
+                    Key = objectKey
+                };
+                DeleteObjectResponse response = await _s3Client.DeleteObjectAsync(request);
+                return true;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error deleting object in S3 bucket", e.Message);
+                return false;
+            }
+        }
     }
+
 }

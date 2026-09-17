@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace mongoAPI.Types
 {
-    public record TranscribeAudioRequest(
+    public record AudioObjectKey(
         [Required(ErrorMessage = "ObjectKey is required")] string ObjectKey
     );
 }

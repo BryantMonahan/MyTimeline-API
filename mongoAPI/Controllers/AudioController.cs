@@ -58,7 +58,8 @@ namespace mongoAPI.Controllers
                 // set to validated and update the missing fields
                 var update = Builders<JournalEntry>.Update
                 .Set(j => j.Validated, true)
-                .Set(j => j.SizeInBytes, metadata.ContentLength);
+                .Set(j => j.SizeInBytes, metadata.SizeInBytes)
+                .Set(j => j.SecLength, metadata.SecLength);
 
                 // get the collection and run the update
                 var collection = _mongoDbService.GetJournalCollection();
@@ -123,7 +124,7 @@ namespace mongoAPI.Controllers
 
         [HttpPost("transcribe")]
         [Authorize]
-        public async Task<IActionResult> TranscribeAudio([FromBody] TranscribeAudioRequest req)
+        public async Task<IActionResult> TranscribeAudio([FromBody] AudioObjectKey req)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var filter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId) & Builders<JournalEntry>.Filter.Eq(j => j.ObjectKey, req.ObjectKey);
@@ -171,6 +172,36 @@ namespace mongoAPI.Controllers
                 var update = Builders<JournalEntry>.Update.Set(j => j.Transcribed, TranscriptionStatus.NotTranscribed);
                 await collection.UpdateOneAsync(filter, update);
                 Console.WriteLine("Something went wrong transcribing an audio file", e.Message);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
+            }
+        }
+
+        [HttpDelete("delete-entry")]
+        [Authorize]
+        public async Task<IActionResult> DeleteEntry([FromHeader(Name = "ObjectKey")] string ObjectKey)
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var collection = _mongoDbService.GetJournalCollection();
+                var filter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId) & Builders<JournalEntry>.Filter.Eq(j => j.ObjectKey, ObjectKey);
+                var entry = await collection.Find(filter).FirstOrDefaultAsync();
+                if (entry == null)
+                {
+                    return StatusCode(StatusCodes.Status400BadRequest, "User has no object with that key");
+                }
+                // make a request to delete the object from the S3 bucket
+                var succeeded = await _s3Service.DeleteObject(ObjectKey);
+                if (succeeded == false)
+                {
+                    return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
+                }
+                await collection.DeleteOneAsync(filter);
+                return StatusCode(StatusCodes.Status204NoContent);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Something went wrong deleting an entry", e.Message);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
             }
         }

@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 
 namespace mongoAPI.Types
 {
-    public class PresignedUrl
+    public class FileSizeAndLength
     {
-        public required string Key { get; set; }
-        public required string Url { get; set; }
+        public int SecLength { get; set; }
+        public int SizeInBytes { get; set; }
     }
 }
