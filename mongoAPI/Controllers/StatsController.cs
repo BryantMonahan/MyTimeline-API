@@ -56,28 +56,62 @@ namespace mongoAPI.Controllers
         [Authorize]
         public async Task<IActionResult> GetStats()
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var collection = _mondoDBService.GetJournalCollection();
-            var generalFilter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId) & Builders<JournalEntry>.Filter.Eq(j => j.Validated, true);
-            var totalEntries = await collection.CountDocumentsAsync(generalFilter);
-            var totalAggregated = await collection.Aggregate().Match(generalFilter).Group(t => t.UserId,
-            g => new
+            try
             {
-                SecondTotal = g.Sum(j => j.SecLength),
-                TranscribedTotal = g.Sum(j => j.Transcribed == TranscriptionStatus.Transcribed ? 1 : 0),
-                BytesUsed = g.Sum(j => j.SizeInBytes),
-                WordsTotal = g.Sum(j => j.WordCount),
-                LongestEntrySeconds = g.Max(j => j.SecLength)
-            }).FirstAsync();
-            return Ok(new
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new Exception("No userId found in JWT");
+                var collection = _mondoDBService.GetJournalCollection();
+                var generalFilter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId) & Builders<JournalEntry>.Filter.Eq(j => j.Validated, true);
+                var totalEntries = await collection.CountDocumentsAsync(generalFilter);
+                var totalAggregated = await collection.Aggregate().Match(generalFilter).Group(t => t.UserId,
+                g => new
+                {
+                    SecondTotal = g.Sum(j => j.SecLength),
+                    TranscribedTotal = g.Sum(j => j.Transcribed == TranscriptionStatus.Transcribed ? 1 : 0),
+                    BytesUsed = g.Sum(j => j.SizeInBytes),
+                    WordsTotal = g.Sum(j => j.WordCount),
+                    LongestEntrySeconds = g.Max(j => j.SecLength)
+                }).FirstOrDefaultAsync();
+                return Ok(new
+                {
+                    SecondTotal = totalAggregated?.SecondTotal ?? 0,
+                    TranscribedTotal = totalAggregated?.TranscribedTotal ?? 0,
+                    BytesUsed = totalAggregated?.BytesUsed ?? 0,
+                    WordsTotal = totalAggregated?.WordsTotal ?? 0,
+                    LongestEntrySeconds = totalAggregated?.LongestEntrySeconds ?? 0,
+                    totalEntries
+                });
+            }
+            catch (Exception e)
             {
-                totalAggregated.SecondTotal,
-                totalAggregated.TranscribedTotal,
-                totalAggregated.BytesUsed,
-                totalAggregated.WordsTotal,
-                totalAggregated.LongestEntrySeconds,
-                totalEntries
-            });
+                Console.WriteLine("Something went wrong getting data for stats row", e.Message);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong getting data for stats row");
+            }
+        }
+        [HttpGet("transcriptions-left")]
+        [Authorize]
+        public async Task<IActionResult> GetTranscriptionsLeft()
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new Exception("No userId found in JWT");
+                var collection = _mondoDBService.GetUserCollection();
+                var filter = Builders<User>.Filter.Eq(u => u.Id, userId);
+                var profile = await collection.Find(filter).FirstOrDefaultAsync() ?? throw new Exception("No user found in db with given userId");
+                if (profile.CoolUser == true)
+                {
+                    return Ok(new { TranscriptionsLeft = -1 });
+                }
+                else
+                {
+                    return Ok(new { profile.TranscriptionsLeft });
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error getting transcriptions left", e.Message);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong getting the number of transcriptions left");
+            }
         }
     }
+
 }

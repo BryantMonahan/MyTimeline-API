@@ -12,6 +12,7 @@ namespace mongoAPI.Models
         public string HashedPassword { get; set; }
         public string Email { get; set; }
         public bool CoolUser { get; set; } = false;
+        public int TranscriptionsLeft { get; set; } = 5;
 
     }
 }

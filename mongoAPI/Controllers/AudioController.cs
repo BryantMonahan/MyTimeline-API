@@ -48,7 +48,7 @@ namespace mongoAPI.Controllers
             try
             {
                 // get userId of account calling endpoint
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new Exception("UserId could not be found in JWT");
 
                 // find where the key and userId match
                 var filter = Builders<JournalEntry>.Filter.Eq(j => j.ObjectKey, req.ObjectKey)
@@ -64,6 +64,7 @@ namespace mongoAPI.Controllers
                 // get the collection and run the update
                 var collection = _mongoDbService.GetJournalCollection();
                 await collection.UpdateOneAsync(filter, update);
+                if (req.Transcribe) await Transcribe(req.ObjectKey, userId);
                 return Created();
             }
             catch (Exception e)
@@ -127,47 +128,14 @@ namespace mongoAPI.Controllers
         public async Task<IActionResult> TranscribeAudio([FromBody] AudioObjectKey req)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var filter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId) & Builders<JournalEntry>.Filter.Eq(j => j.ObjectKey, req.ObjectKey);
             try
             {
                 var username = User.FindFirstValue(ClaimTypes.Name);
-                var collection = _mongoDbService.GetJournalCollection();
-                var entry = await collection.Find(filter).ToListAsync();
-                if (entry.Count == 0)
-                {
-                    return BadRequest("No object with that key belonging to this user was found");
-                }
-                else if (entry.First().Transcribed != TranscriptionStatus.NotTranscribed)
-                {
-                    return BadRequest("File has already been transcribed");
-                }
-                // set entry to transcribing
-                var update = Builders<JournalEntry>.Update.Set(j => j.Transcribed, TranscriptionStatus.Transcribing);
-                await collection.UpdateOneAsync(filter, update);
-
-                var url = _s3Service.GetPresignedUrlGet(req.ObjectKey);
-
-                var transcript = await _deepgramService.TranscribeFileAsync(url);
-                if (transcript.Results.Summary.Result == "success")
-                {
-                    // set as transcribed
-                    update = Builders<JournalEntry>.Update
-                    .Set(j => j.Transcribed, TranscriptionStatus.Transcribed)
-                    .Set(j => j.Transcription, transcript.Results.Channels[0].Alternatives[0].Transcript)
-                    .Set(j => j.WordCount, transcript.Results.Channels[0].Alternatives[0].Words.Count)
-                    .Set(j => j.Summary, transcript.Results.Summary.Short);
-                    await collection.UpdateOneAsync(filter, update);
-                    var doc = await collection.FindAsync(filter);
-                    return Ok(doc.FirstOrDefault());
-                }
-                else
-                {
-                    throw new Exception("The transcript did not succeed");
-                }
-
+                return await Transcribe(req.ObjectKey, userId);
             }
             catch (Exception e)
             {
+                var filter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId) & Builders<JournalEntry>.Filter.Eq(j => j.ObjectKey, req.ObjectKey);
                 var collection = _mongoDbService.GetJournalCollection();
                 var update = Builders<JournalEntry>.Update.Set(j => j.Transcribed, TranscriptionStatus.NotTranscribed);
                 await collection.UpdateOneAsync(filter, update);
@@ -203,6 +171,46 @@ namespace mongoAPI.Controllers
             {
                 Console.WriteLine("Something went wrong deleting an entry", e.Message);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
+            }
+        }
+
+        private async Task<IActionResult> Transcribe(string ObjectKey, string UserId)
+        {
+            var filter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, UserId) & Builders<JournalEntry>.Filter.Eq(j => j.ObjectKey, ObjectKey);
+            var collection = _mongoDbService.GetJournalCollection();
+            var entry = await collection.Find(filter).ToListAsync();
+            if (entry.Count == 0)
+            {
+                return BadRequest("No object with that key belonging to this user was found");
+            }
+            else if (entry.First().Transcribed != TranscriptionStatus.NotTranscribed)
+            {
+                return BadRequest("File has already been transcribed");
+            }
+            // set entry to transcribing
+            var update = Builders<JournalEntry>.Update.Set(j => j.Transcribed, TranscriptionStatus.Transcribing);
+            await collection.UpdateOneAsync(filter, update);
+
+            var url = _s3Service.GetPresignedUrlGet(ObjectKey);
+
+            var transcript = await _deepgramService.TranscribeFileAsync(url);
+            if (transcript.Results.Summary.Result == "success")
+            {
+                // set as transcribed
+                update = Builders<JournalEntry>.Update
+                .Set(j => j.Transcribed, TranscriptionStatus.Transcribed)
+                .Set(j => j.Transcription, transcript.Results.Channels[0].Alternatives[0].Transcript)
+                .Set(j => j.WordCount, transcript.Results.Channels[0].Alternatives[0].Words.Count)
+                .Set(j => j.Summary, transcript.Results.Summary.Short);
+                await collection.UpdateOneAsync(filter, update);
+                var doc = await collection.FindAsync(filter);
+                var userCollection = _mongoDbService.GetUserCollection();
+                await userCollection.UpdateOneAsync(u => u.Id == UserId, Builders<User>.Update.Inc(u => u.TranscriptionsLeft, -1));
+                return Ok(doc.FirstOrDefault());
+            }
+            else
+            {
+                throw new Exception("The transcript did not succeed");
             }
         }
     }
