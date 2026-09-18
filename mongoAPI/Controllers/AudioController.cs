@@ -74,9 +74,9 @@ namespace mongoAPI.Controllers
             }
         }
 
-        [HttpGet("url")]
+        [HttpGet("post-url")]
         [Authorize]
-        async public Task<IActionResult> GetPresignedS3Url([FromQuery] string fileName)
+        async public Task<IActionResult> GetPresignedPostS3Url([FromQuery] string fileName)
         {
             var extension = Path.GetExtension(fileName);
             if (!AllowedAudioExtensions.Contains(extension))
@@ -101,6 +101,31 @@ namespace mongoAPI.Controllers
 
             }
             return Ok(url);
+        }
+
+        [HttpGet("get-url")]
+        [Authorize]
+        async public Task<IActionResult> GetPresignedGetS3Url([FromQuery] string objectKey)
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new Exception("UserId not found in JWT token");
+                var filter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId) & Builders<JournalEntry>.Filter.Eq(j => j.ObjectKey, objectKey);
+                var collection = _mongoDbService.GetJournalCollection();
+                var entry = await collection.Find(filter).ToListAsync();
+                if (entry.Count == 0)
+                {
+                    return BadRequest("No object with that key belonging to this user was found");
+                }
+                var url = _s3Service.GetPresignedUrlGet(objectKey);
+                return Ok(url);
+
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return StatusCode(StatusCodes.Status500InternalServerError, e.Message);
+            }
         }
 
         [HttpGet("most-recent-entries")]
