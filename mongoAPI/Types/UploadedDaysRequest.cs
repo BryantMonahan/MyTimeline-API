@@ -9,5 +9,5 @@ namespace mongoAPI.Types
 {
     public record UploadedDaysRequest
     // offset is in minutes
-    ([Required(ErrorMessage = "MinutesPastMidnight is required")] int MinutesPastMidnight);
+    ([Required(ErrorMessage = "MinutesPastMidnight is required")] int? MinutesPastMidnight);
 }

@@ -21,7 +21,7 @@ namespace mongoAPI.Controllers
     {
         private static readonly HashSet<string> AllowedAudioExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".wma", ".aiff"
+            ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".wma", ".aiff", ".webm"
         };
 
         private readonly S3Service _s3Service;
@@ -64,7 +64,7 @@ namespace mongoAPI.Controllers
                 // get the collection and run the update
                 var collection = _mongoDbService.GetJournalCollection();
                 await collection.UpdateOneAsync(filter, update);
-                if (req.Transcribe) await Transcribe(req.ObjectKey, userId);
+                if (req.Transcribe == true) await Transcribe(req.ObjectKey, userId);
                 return Created();
             }
             catch (Exception e)

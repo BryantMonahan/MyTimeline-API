@@ -31,7 +31,7 @@ namespace mongoAPI.Controllers
             // determine the user's time
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             Console.WriteLine(userId);
-            var startTime = DateTime.UtcNow.AddMinutes(-1 * req.MinutesPastMidnight);
+            var startTime = DateTime.UtcNow.AddMinutes(-1 * req.MinutesPastMidnight!.Value);
             var endTime = startTime.AddDays(1);
             List<bool> daysUsed = new List<bool>();
             var collection = _mondoDBService.GetJournalCollection();

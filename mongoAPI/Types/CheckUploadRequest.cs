@@ -9,6 +9,6 @@ namespace mongoAPI.Types
     public record CheckUploadRequest
     (
                [Required(ErrorMessage = "ObjectKey is required")] string ObjectKey,
-               [Required(ErrorMessage = "Transcribe is required")] Boolean Transcribe
+               [Required(ErrorMessage = "Transcribe is required")] Boolean? Transcribe
     );
 }
