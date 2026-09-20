@@ -17,6 +17,8 @@ namespace mongoAPI.Models
         public DateTime Uploaded { get; set; }
         public string Name { get; set; }
         public string FileName { get; set; }
+        public string Title { get; set; }
+        public bool Favorite { get; set; } = false;
         public string Description { get; set; } = "";
         public int SecLength { get; set; }
         public int SizeInBytes { get; set; }

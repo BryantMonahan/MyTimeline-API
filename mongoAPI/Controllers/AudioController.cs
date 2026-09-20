@@ -12,6 +12,7 @@ using System.Diagnostics.CodeAnalysis;
 using MongoDB.Driver;
 using System.Numerics;
 using MongoDB.Bson;
+using System.Runtime.CompilerServices;
 
 namespace mongoAPI.Controllers
 {
@@ -59,7 +60,9 @@ namespace mongoAPI.Controllers
                 var update = Builders<JournalEntry>.Update
                 .Set(j => j.Validated, true)
                 .Set(j => j.SizeInBytes, metadata.SizeInBytes)
-                .Set(j => j.SecLength, metadata.SecLength);
+                .Set(j => j.SecLength, metadata.SecLength)
+                .Set(j => j.Title, req.Title)
+                .Set(j => j.Description, req.Description ?? "");
 
                 // get the collection and run the update
                 var collection = _mongoDbService.GetJournalCollection();
@@ -197,6 +200,30 @@ namespace mongoAPI.Controllers
                 Console.WriteLine("Something went wrong deleting an entry", e.Message);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
             }
+        }
+
+        [HttpPost("favorite")]
+        [Authorize]
+        public async Task<IActionResult> FlipFavorite([FromBody] JournalEntryId req)
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new Exception("UserId could not be found JWT token");
+                var filter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId) & Builders<JournalEntry>.Filter.Eq(j => j.Id, req.Id);
+                var collection = _mongoDbService.GetJournalCollection();
+                var favorite = await collection.Find(filter).FirstOrDefaultAsync();
+                if (favorite == null) return BadRequest("No entry with that UserId and JournalEntryId could be found");
+
+                var update = Builders<JournalEntry>.Update.Set(j => j.Favorite, !favorite.Favorite);
+                await collection.UpdateOneAsync(filter, update);
+                return NoContent();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Something went wrong flipping favorite field", e.Message);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong flipping favorite field");
+            }
+
         }
 
         private async Task<IActionResult> Transcribe(string ObjectKey, string UserId)
