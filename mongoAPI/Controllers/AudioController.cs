@@ -137,7 +137,7 @@ namespace mongoAPI.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new Exception("UserId could not be found in JWT");
                 var collection = _mongoDbService.GetJournalCollection();
                 var filter = Builders<JournalEntry>.Filter.Eq(j => j.Validated, true)
                     & Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId);
@@ -149,6 +149,32 @@ namespace mongoAPI.Controllers
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
             }
+        }
+
+        [HttpGet("entries")]
+        [Authorize]
+        async public Task<IActionResult> GetAudioEntries()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new Exception("UserId could not be found in JWT");
+            var collection = _mongoDbService.GetJournalCollection();
+            var filter = Builders<JournalEntry>.Filter.Eq(j => j.Validated, true) & Builders<JournalEntry>.Filter.Eq(j => j.UserId, userId);
+            var entries = await collection.Find(filter).SortByDescending(j => j.Uploaded).Project(j => new
+            {
+                j.Id,
+                j.ObjectKey,
+                j.Title,
+                j.Description,
+                j.Uploaded,
+                j.Favorite,
+                j.SecLength,
+                j.WordCount,
+                j.SizeInBytes,
+                j.Summary,
+                j.Transcribed,
+                Transcription = (j.Transcription ?? "").Substring(0, 200)
+            }).ToListAsync();
+
+            return Ok(entries);
         }
 
         [HttpPost("transcribe")]
