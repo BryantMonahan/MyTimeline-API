@@ -25,7 +25,7 @@ namespace mongoAPI.Services
             {
                 throw new Exception("No object with that key belonging to this user was found");
             }
-            else if (entry.First().Transcribed != TranscriptionStatus.NotTranscribed)
+            else if (entry.First().Transcribed == TranscriptionStatus.Transcribed)
             {
                 throw new Exception("File has already been transcribed");
             }
