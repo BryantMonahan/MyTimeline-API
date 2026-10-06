@@ -18,10 +18,12 @@ namespace mongoAPI.Controllers
     public class StatsController : ControllerBase
     {
         private readonly MongoDBService _mondoDBService;
+        private readonly ILogger<StatsController> _logger;
 
-        public StatsController(MongoDBService mongoDBService)
+        public StatsController(MongoDBService mongoDBService, ILogger<StatsController> logger)
         {
             _mondoDBService = mongoDBService;
+            _logger = logger;
         }
 
         [HttpGet("past-seven-days")]
@@ -30,7 +32,6 @@ namespace mongoAPI.Controllers
         {
             // determine the user's time
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            Console.WriteLine(userId);
             var startTime = DateTime.UtcNow.AddMinutes(-1 * req.MinutesPastMidnight!.Value);
             var endTime = startTime.AddDays(1);
             List<bool> daysUsed = new List<bool>();
@@ -83,7 +84,7 @@ namespace mongoAPI.Controllers
             }
             catch (Exception e)
             {
-                Console.WriteLine("Something went wrong getting data for stats row", e.Message);
+                _logger.LogError(e, "Something went wrong getting data for stats row");
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong getting data for stats row");
             }
         }
@@ -108,7 +109,7 @@ namespace mongoAPI.Controllers
             }
             catch (Exception e)
             {
-                Console.WriteLine("Error getting transcriptions left", e.Message);
+                _logger.LogError(e, "Error getting transcriptions left");
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong getting the number of transcriptions left");
             }
         }

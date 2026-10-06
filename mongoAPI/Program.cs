@@ -2,6 +2,10 @@ using mongoAPI.Services;
 using DotNetEnv;
 using mongoAPI.Types;
 using Amazon.S3;
+using Hangfire;
+using Hangfire.Mongo;
+using Hangfire.Mongo.Migration.Strategies;
+using Hangfire.Mongo.Migration.Strategies.Backup;
 using Amazon;
 using Microsoft.Extensions.Options;
 using Amazon.Runtime;
@@ -64,9 +68,11 @@ builder.Services.AddSingleton<S3Service>(sp =>
 {
     var s3Client = sp.GetRequiredService<IAmazonS3>();
     var s3Settings = sp.GetRequiredService<IOptions<S3Settings>>().Value;
+    var logger = sp.GetRequiredService<ILogger<S3Service>>();
 
-    return new S3Service(s3Client, s3Settings);
+    return new S3Service(s3Client, s3Settings, logger);
 });
+builder.Services.AddSingleton<TranscribeService>();
 builder.Services.AddSingleton<TokenService>(sp => new TokenService(jwtSecretKey, jwtIssuer, jwtAudience));
 builder.Services.AddAuthorization();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(p =>
@@ -98,6 +104,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 var mongoService = builder.Services.BuildServiceProvider().GetRequiredService<MongoDBService>();
 await mongoService.AddIndexes();
 
+
+
+builder.Services.AddHangfire(cfg => cfg
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseMongoStorage(mongoURI, "my-timeline-db", new MongoStorageOptions
+    {
+        MigrationOptions = new MongoMigrationOptions
+        {
+            MigrationStrategy = new MigrateMongoMigrationStrategy(),
+            BackupStrategy = new CollectionMongoBackupStrategy()
+        }
+    }));
+builder.Services.AddHangfireServer();
+
 // Add services to the container.
 
 builder.Services.AddControllers();
@@ -122,6 +144,12 @@ app.UseCors("DevCorsPolicy");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// dashboard is only exposed in development
+if (!isProd)
+{
+    app.UseHangfireDashboard("/hangfire");
+}
 
 app.MapControllers();
 

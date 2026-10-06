@@ -13,6 +13,7 @@ using MongoDB.Driver;
 using System.Numerics;
 using MongoDB.Bson;
 using System.Runtime.CompilerServices;
+using Hangfire;
 
 namespace mongoAPI.Controllers
 {
@@ -28,12 +29,16 @@ namespace mongoAPI.Controllers
         private readonly S3Service _s3Service;
         private readonly MongoDBService _mongoDbService;
         private readonly DeepgramService _deepgramService;
+        private readonly ILogger<AudioController> _logger;
+        private readonly TranscribeService _transcribeService;
 
-        public AudioController(S3Service s3Service, MongoDBService mongoDbService, DeepgramService deepgramService)
+        public AudioController(S3Service s3Service, MongoDBService mongoDbService, DeepgramService deepgramService, ILogger<AudioController> logger, TranscribeService transcribeService)
         {
             _s3Service = s3Service;
             _mongoDbService = mongoDbService;
             _deepgramService = deepgramService;
+            _logger = logger;
+            _transcribeService = transcribeService;
         }
 
         [HttpPost("confirm-upload")]
@@ -67,12 +72,13 @@ namespace mongoAPI.Controllers
                 // get the collection and run the update
                 var collection = _mongoDbService.GetJournalCollection();
                 await collection.UpdateOneAsync(filter, update);
-                if (req.Transcribe == true) await Transcribe(req.ObjectKey, userId);
-                return Created();
+                string? jobId = null;
+                if (req.Transcribe == true) jobId = BackgroundJob.Enqueue(() => _transcribeService.Transcribe(req.ObjectKey, userId));
+                return Ok(new { jobId });
             }
             catch (Exception e)
             {
-                Console.WriteLine("Something went wrong confirming file upload", e.Message);
+                _logger.LogError(e, "Something went wrong confirming file upload for {ObjectKey}", req.ObjectKey);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
             }
         }
@@ -99,7 +105,7 @@ namespace mongoAPI.Controllers
             }
             catch (Exception e)
             {
-                Console.WriteLine("Something went wrong creating the journal entry in mongo", e.Message);
+                _logger.LogError(e, "Something went wrong creating the journal entry in mongo for {ObjectKey}", url.Key);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
 
             }
@@ -126,7 +132,7 @@ namespace mongoAPI.Controllers
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
+                _logger.LogError(e, "Something went wrong creating a presigned GET url for {ObjectKey}", objectKey);
                 return StatusCode(StatusCodes.Status500InternalServerError, e.Message);
             }
         }
@@ -145,8 +151,9 @@ namespace mongoAPI.Controllers
                 var entries = await collection.Find(filter).Sort(sort).Limit(numOfEntries).ToListAsync();
                 return Ok(entries);
             }
-            catch (System.Exception)
+            catch (Exception e)
             {
+                _logger.LogError(e, "Something went wrong getting the {NumOfEntries} most recent journal entries", numOfEntries);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
             }
         }
@@ -170,6 +177,7 @@ namespace mongoAPI.Controllers
                 j.WordCount,
                 j.SizeInBytes,
                 j.Summary,
+                j.FileName,
                 j.Transcribed,
                 Transcription = (j.Transcription ?? "").Substring(0, 200)
             }).ToListAsync();
@@ -185,7 +193,8 @@ namespace mongoAPI.Controllers
             try
             {
                 var username = User.FindFirstValue(ClaimTypes.Name);
-                return await Transcribe(req.ObjectKey, userId);
+                var jobId = BackgroundJob.Enqueue(() => _transcribeService.Transcribe(req.ObjectKey, userId));
+                return Ok(new { jobId });
             }
             catch (Exception e)
             {
@@ -193,7 +202,7 @@ namespace mongoAPI.Controllers
                 var collection = _mongoDbService.GetJournalCollection();
                 var update = Builders<JournalEntry>.Update.Set(j => j.Transcribed, TranscriptionStatus.NotTranscribed);
                 await collection.UpdateOneAsync(filter, update);
-                Console.WriteLine("Something went wrong transcribing an audio file", e.Message);
+                _logger.LogError(e, "Something went wrong transcribing audio file {ObjectKey} for user {UserId}", req.ObjectKey, userId);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
             }
         }
@@ -223,7 +232,7 @@ namespace mongoAPI.Controllers
             }
             catch (Exception e)
             {
-                Console.WriteLine("Something went wrong deleting an entry", e.Message);
+                _logger.LogError(e, "Something went wrong deleting the entry for {ObjectKey}", ObjectKey);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong");
             }
         }
@@ -246,50 +255,12 @@ namespace mongoAPI.Controllers
             }
             catch (Exception e)
             {
-                Console.WriteLine("Something went wrong flipping favorite field", e.Message);
+                _logger.LogError(e, "Something went wrong flipping favorite field for entry {EntryId}", req.Id);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Something went wrong flipping favorite field");
             }
 
         }
 
-        private async Task<IActionResult> Transcribe(string ObjectKey, string UserId)
-        {
-            var filter = Builders<JournalEntry>.Filter.Eq(j => j.UserId, UserId) & Builders<JournalEntry>.Filter.Eq(j => j.ObjectKey, ObjectKey);
-            var collection = _mongoDbService.GetJournalCollection();
-            var entry = await collection.Find(filter).ToListAsync();
-            if (entry.Count == 0)
-            {
-                return BadRequest("No object with that key belonging to this user was found");
-            }
-            else if (entry.First().Transcribed != TranscriptionStatus.NotTranscribed)
-            {
-                return BadRequest("File has already been transcribed");
-            }
-            // set entry to transcribing
-            var update = Builders<JournalEntry>.Update.Set(j => j.Transcribed, TranscriptionStatus.Transcribing);
-            await collection.UpdateOneAsync(filter, update);
 
-            var url = _s3Service.GetPresignedUrlGet(ObjectKey);
-
-            var transcript = await _deepgramService.TranscribeFileAsync(url);
-            if (transcript.Results.Summary.Result == "success")
-            {
-                // set as transcribed
-                update = Builders<JournalEntry>.Update
-                .Set(j => j.Transcribed, TranscriptionStatus.Transcribed)
-                .Set(j => j.Transcription, transcript.Results.Channels[0].Alternatives[0].Transcript)
-                .Set(j => j.WordCount, transcript.Results.Channels[0].Alternatives[0].Words.Count)
-                .Set(j => j.Summary, transcript.Results.Summary.Short);
-                await collection.UpdateOneAsync(filter, update);
-                var doc = await collection.FindAsync(filter);
-                var userCollection = _mongoDbService.GetUserCollection();
-                await userCollection.UpdateOneAsync(u => u.Id == UserId, Builders<User>.Update.Inc(u => u.TranscriptionsLeft, -1));
-                return Ok(doc.FirstOrDefault());
-            }
-            else
-            {
-                throw new Exception("The transcript did not succeed");
-            }
-        }
     }
 }

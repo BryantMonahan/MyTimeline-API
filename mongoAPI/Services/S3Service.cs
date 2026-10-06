@@ -10,11 +10,13 @@ namespace mongoAPI.Services
     {
         private readonly IAmazonS3 _s3Client;
         private readonly S3Settings _s3Settings;
+        private readonly ILogger<S3Service> _logger;
 
-        public S3Service(IAmazonS3 s3Client, S3Settings s3Settings)
+        public S3Service(IAmazonS3 s3Client, S3Settings s3Settings, ILogger<S3Service> logger)
         {
             _s3Client = s3Client;
             _s3Settings = s3Settings;
+            _logger = logger;
         }
 
         public PresignedUrl GetPresignedUrlPut(string username, string extension)
@@ -60,7 +62,7 @@ namespace mongoAPI.Services
             }
             catch (Exception e)
             {
-                Console.WriteLine("Error retrieving metadata", e.Message);
+                _logger.LogError(e, "Error retrieving metadata");
                 return null;
             }
         }
@@ -80,7 +82,7 @@ namespace mongoAPI.Services
             }
             catch (Exception e)
             {
-                Console.WriteLine("Error deleting object in S3 bucket", e.Message);
+                _logger.LogError(e, "Error deleting object in S3 bucket");
                 return false;
             }
         }
